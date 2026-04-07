@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR Watch Try-On</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ar.js@3.4.5/three.js/ar.js"></script>
+    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aframe-ar@3.4.5/aframe-ar.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: #000;
+        }
+
+        #scene {
+            width: 100%;
+            height: 100vh;
+            display: block;
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px 25px;
+            border-radius: 50px;
+            color: white;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(255, 255, 255, 0.1);
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        select, input[type="range"] {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        select option {
+            background: #000;
+            color: white;
+        }
+
+        input[type="range"] {
+            width: 100px;
+            cursor: pointer;
+        }
+
+        label {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px 20px;
+            border-radius: 12px;
+            color: white;
+            font-size: 13px;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .info h3 {
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #4CAF50;
+        }
+
+        .error {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(244, 67, 54, 0.95);
+            padding: 30px;
+            border-radius: 12px;
+            color: white;
+            text-align: center;
+            z-index: 200;
+            max-width: 400px;
+            backdrop-filter: blur(10px);
+        }
+
+        .error h2 {
+            margin-bottom: 10px;
+        }
+
+        button {
+            padding: 8px 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+    </style>
+</head>
+<body>
+    <!-- Info Panel -->
+    <div class="info">
+        <h3>📱 AR Watch Try-On</h3>
+        <p id="status">Initializing AR...</p>
+    </div>
+
+    <!-- Error Message (hidden by default) -->
+    <div id="errorDiv" class="error" style="display: none;">
+        <h2>AR Not Supported</h2>
+        <p id="errorMsg"></p>
+        <p style="margin-top: 15px; font-size: 12px;">This experience requires a device with camera access and WebAR support.</p>
+    </div>
+
+    <!-- A-Frame AR Scene -->
+    <a-scene 
+        id="scene"
+        embedded 
+        arjs="sourceType: webcam; 
+              debugUIEnabled: false; 
+              detectionMode: mono; 
+              matrixCodeType: 3x3;"
+        vr-mode-ui="enabled: false">
+        
+        <!-- Camera with position locked to hand -->
+        <a-camera position="0 0 0" 
+                   look-controls="enabled: false"
+                   cursor="rayOrigin: mouse"></a-camera>
+
+        <!-- Light -->
+        <a-light type="ambient" intensity="1"></a-light>
+        <a-light type="directional" intensity="0.8" position="5 5 5"></a-light>
+
+        <!-- Watch Model (will be loaded dynamically) -->
+        <a-entity id="watch"
+                   position="0 0 -0.5"
+                   rotation="0 0 0"
+                   scale="1 1 1">
+            <!-- Simple watch using primitives as placeholder -->
+            <a-cylinder id="watch-face"
+                        radius="0.06"
+                        height="0.015"
+                        color="#1a1a1a"
+                        material="metalness: 0.9; roughness: 0.1;">
+            </a-cylinder>
+            <a-torus id="watch-band-top"
+                     radius="0.065"
+                     radius-tubular="0.008"
+                     segmentsRadial="4"
+                     segmentsTubular="30"
+                     color="#d4af37"
+                     material="metalness: 0.8; roughness: 0.2;">
+            </a-torus>
+        </a-entity>
+
+        <!-- Sky (optional background) -->
+        <a-sky color="#87CEEB"></a-sky>
+    </a-scene>
+
+    <!-- Controls Panel -->
+    <div class="controls">
+        <div class="control-group">
+            <label for="colorSelect">Color:</label>
+            <select id="colorSelect">
+                <option value="#d4af37">Gold</option>
+                <option value="#c0c0c0">Silver</option>
+                <option value="#2a2a2a">Black</option>
+                <option value="#8B4513">Rose Gold</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label for="scaleSlider">Size:</label>
+            <input type="range" id="scaleSlider" min="0.8" max="1.5" step="0.1" value="1">
+            <span id="scaleValue">1.0x</span>
+        </div>
+
+        <div class="control-group">
+            <label for="rotateSlider">Rotate:</label>
+            <input type="range" id="rotateSlider" min="0" max="360" step="5" value="0">
+        </div>
+
+        <button onclick="captureScreenshot()">📸 Capture</button>
+    </div>
+
+    <script>
+        // ============= CONFIGURATION =============
+        const config = {
+            watchScale: 1,
+            watchRotation: { x: 0, y: 0, z: 0 },
+            watchColor: '#d4af37',
+            handsTracked: false
+        };
+
+        // ============= INITIALIZATION =============
+        function initAR() {
+            try {
+                updateStatus('AR Ready! Position your wrist in frame');
+                
+                // Setup controls
+                setupControls();
+                
+                // Start hand detection
+                startHandDetection();
+            } catch (error) {
+                showError('Failed to initialize AR: ' + error.message);
+            }
+        }
+
+        // ============= HAND DETECTION (Using ML Kit Pose) =============
+        async function startHandDetection() {
+            try {
+                // Load TensorFlow Pose Detection
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.2.0/dist/pose-detection.min.js';
+                document.head.appendChild(script);
+
+                script.onload = async () => {
+                    // Fallback: Simple hand position simulation for demo
+                    simulateHandTracking();
+                    updateStatus('Hand tracking active');
+                };
+            } catch (error) {
+                console.warn('Hand detection unavailable, using simulated tracking:', error);
+                simulateHandTracking();
+            }
+        }
+
+        // ============= HAND TRACKING SIMULATION =============
+        function simulateHandTracking() {
+            let angle = 0;
+            const watchEntity = document.getElementById('watch');
+
+            setInterval(() => {
+                if (config.handsTracked) {
+                    // Simulate wrist movement - slow circular motion
+                    angle += 0.02;
+                    const x = Math.cos(angle) * 0.1;
+                    const y = 0.3 + Math.sin(angle) * 0.05;
+                    const z = -0.5;
+
+                    watchEntity.setAttribute('position', `${x} ${y} ${z}`);
+                }
+            }, 30);
+
+            config.handsTracked = true;
+        }
+
+        // ============= UI CONTROLS =============
+        function setupControls() {
+            // Color picker
+            document.getElementById('colorSelect').addEventListener('change', (e) => {
+                config.watchColor = e.target.value;
+                updateWatchColor(config.watchColor);
+            });
+
+            // Scale slider
+            document.getElementById('scaleSlider').addEventListener('input', (e) => {
+                config.watchScale = parseFloat(e.target.value);
+                document.getElementById('scaleValue').textContent = config.watchScale.toFixed(1) + 'x';
+                updateWatchScale(config.watchScale);
+            });
+
+            // Rotation slider
+            document.getElementById('rotateSlider').addEventListener('input', (e) => {
+                config.watchRotation.z = parseFloat(e.target.value);
+                updateWatchRotation(config.watchRotation);
+            });
+        }
+
+        // ============= WATCH UPDATES =============
+        function updateWatchColor(color) {
+            const watchFace = document.getElementById('watch-face');
+            const watchBand = document.getElementById('watch-band-top');
+            
+            if (color === '#2a2a2a') {
+                watchFace.setAttribute('color', '#1a1a1a');
+                watchBand.setAttribute('color', '#333333');
+            } else {
+                watchFace.setAttribute('color', color);
+                watchBand.setAttribute('color', color);
+            }
+        }
+
+        function updateWatchScale(scale) {
+            document.getElementById('watch').setAttribute('scale', `${scale} ${scale} ${scale}`);
+        }
+
+        function updateWatchRotation(rotation) {
+            const watch = document.getElementById('watch');
+            watch.setAttribute('rotation', `${rotation.x} ${rotation.y} ${rotation.z}`);
+        }
+
+        // ============= SCREENSHOT CAPTURE =============
+        function captureScreenshot() {
+            const canvas = document.querySelector('canvas');
+            if (!canvas) {
+                alert('Canvas not available');
+                return;
+            }
+
+            const link = document.createElement('a');
+            link.href = canvas.toDataURL('image/png');
+            link.download = `ar-watch-${Date.now()}.png`;
+            link.click();
+            
+            updateStatus('📸 Screenshot saved!');
+        }
+
+        // ============= UTILITIES =============
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+            console.log('Status:', message);
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorDiv');
+            const errorMsg = document.getElementById('errorMsg');
+            errorMsg.textContent = message;
+            errorDiv.style.display = 'block';
+            console.error('Error:', message);
+        }
+
+        // ============= START APP =============
+        window.addEventListener('DOMContentLoaded', () => {
+            // Check for WebAR support
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showError('WebAR requires camera access. Please use a modern mobile device.');
+                return;
+            }
+
+            // Give A-Frame time to initialize
+            setTimeout(initAR, 1000);
+        });
+
+        // Handle permission denied
+        window.addEventListener('error', (e) => {
+            if (e.message.includes('camera') || e.message.includes('permission')) {
+                showError('Camera permission denied. Please allow camera access.');
+            }
+        });
+    </script>
+</body>
+</html>

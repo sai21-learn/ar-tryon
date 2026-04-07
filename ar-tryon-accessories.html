@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR Accessories Try-On</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ar.js@3.4.5/three.js/ar.js"></script>
+    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aframe-ar@3.4.5/aframe-ar.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: #000;
+        }
+
+        #scene {
+            width: 100%;
+            height: 100vh;
+            display: block;
+        }
+
+        .header {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 12px 18px;
+            border-radius: 12px;
+            color: white;
+            font-size: 13px;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header h3 {
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #4CAF50;
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            padding: 15px 20px;
+            border-radius: 50px;
+            color: white;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 95vw;
+            justify-content: center;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        select, input[type="range"], input[type="number"] {
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: none;
+            background: rgba(255, 255, 255, 0.12);
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        select option {
+            background: #000;
+            color: white;
+        }
+
+        input[type="range"] {
+            width: 80px;
+        }
+
+        input[type="number"] {
+            width: 50px;
+        }
+
+        label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+
+        button {
+            padding: 6px 14px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 12px;
+            transition: background 0.3s;
+            white-space: nowrap;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .error {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(244, 67, 54, 0.95);
+            padding: 30px;
+            border-radius: 12px;
+            color: white;
+            text-align: center;
+            z-index: 200;
+            max-width: 400px;
+            backdrop-filter: blur(10px);
+        }
+
+        .error h2 {
+            margin-bottom: 10px;
+        }
+
+        .color-swatch {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid white;
+            cursor: pointer;
+            margin: 0 2px;
+            transition: transform 0.2s;
+        }
+
+        .color-swatch:hover {
+            transform: scale(1.15);
+        }
+
+        .divider {
+            width: 1px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .value-display {
+            font-size: 11px;
+            color: #4CAF50;
+            min-width: 35px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h3>✨ AR Try-On</h3>
+        <p id="status">Initializing...</p>
+    </div>
+
+    <!-- Error Message -->
+    <div id="errorDiv" class="error" style="display: none;">
+        <h2>AR Not Supported</h2>
+        <p id="errorMsg"></p>
+    </div>
+
+    <!-- A-Frame AR Scene -->
+    <a-scene 
+        id="scene"
+        embedded 
+        arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono;"
+        vr-mode-ui="enabled: false">
+        
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+        <a-light type="ambient" intensity="1"></a-light>
+        <a-light type="directional" intensity="0.8" position="5 5 5"></a-light>
+
+        <!-- WATCH -->
+        <a-entity id="watch" position="0 0 -0.5" rotation="0 0 0" scale="1 1 1" visible="true">
+            <a-cylinder id="watch-face" radius="0.06" height="0.015" color="#1a1a1a" 
+                        material="metalness: 0.9; roughness: 0.1;"></a-cylinder>
+            <a-torus id="watch-band" radius="0.065" radius-tubular="0.008" color="#d4af37"
+                     material="metalness: 0.8; roughness: 0.2;"></a-torus>
+        </a-entity>
+
+        <!-- RING -->
+        <a-entity id="ring" position="0.12 0 -0.5" rotation="90 0 0" scale="0.8 0.8 0.8" visible="false">
+            <a-torus id="ring-band" radius="0.02" radius-tubular="0.005" color="#d4af37"
+                     material="metalness: 0.95; roughness: 0.05;"></a-torus>
+            <a-sphere id="ring-stone" radius="0.012" position="0 0 0.022" color="#FF1493"
+                      material="metalness: 0.6; roughness: 0.1;"></a-sphere>
+        </a-entity>
+
+        <!-- SUNGLASSES -->
+        <a-entity id="sunglasses" position="0 0.08 -0.5" rotation="0 0 0" scale="1 1 1" visible="false">
+            <!-- Left lens -->
+            <a-box id="lens-left" position="-0.04" width="0.025" height="0.035" depth="0.01" color="#1a1a1a"
+                   material="metalness: 0.7; roughness: 0.3;"></a-box>
+            <!-- Right lens -->
+            <a-box id="lens-right" position="0.04" width="0.025" height="0.035" depth="0.01" color="#1a1a1a"
+                   material="metalness: 0.7; roughness: 0.3;"></a-box>
+            <!-- Bridge -->
+            <a-box id="bridge" position="0" width="0.008" height="0.008" depth="0.01" color="#333333"
+                   material="metalness: 0.8; roughness: 0.2;"></a-box>
+        </a-entity>
+
+        <a-sky color="#87CEEB"></a-sky>
+    </a-scene>
+
+    <!-- Controls Panel -->
+    <div class="controls">
+        <!-- Product Selector -->
+        <div class="control-group">
+            <label for="productSelect">Product:</label>
+            <select id="productSelect">
+                <option value="watch">⌚ Watch</option>
+                <option value="ring">💍 Ring</option>
+                <option value="sunglasses">😎 Sunglasses</option>
+            </select>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Color Picker -->
+        <div class="control-group">
+            <label>Color:</label>
+            <div id="colorSwatches"></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Scale Control -->
+        <div class="control-group">
+            <label for="scaleSlider">Size:</label>
+            <input type="range" id="scaleSlider" min="0.5" max="1.8" step="0.1" value="1">
+            <span class="value-display" id="scaleValue">1.0x</span>
+        </div>
+
+        <!-- Rotation Control -->
+        <div class="control-group">
+            <label for="rotateSlider">Rotate:</label>
+            <input type="range" id="rotateSlider" min="0" max="360" step="10" value="0">
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Capture Button -->
+        <button onclick="captureScreenshot()">📸 Capture</button>
+    </div>
+
+    <script>
+        // ============= CONFIGURATION =============
+        const config = {
+            currentProduct: 'watch',
+            scale: 1,
+            rotation: 0,
+            color: '#d4af37',
+            colors: {
+                watch: ['#d4af37', '#c0c0c0', '#2a2a2a', '#8B4513', '#FF6B6B'],
+                ring: ['#d4af37', '#c0c0c0', '#FF1493', '#8B4513', '#FF4500'],
+                sunglasses: ['#1a1a1a', '#2a2a2a', '#1a1a1a', '#1a1a1a', '#1a1a1a']
+            }
+        };
+
+        // ============= INITIALIZATION =============
+        function initAR() {
+            try {
+                updateStatus('AR Ready! Position accessory in frame');
+                setupControls();
+                startHandTracking();
+                renderColorSwatches();
+            } catch (error) {
+                showError('Failed to initialize AR: ' + error.message);
+            }
+        }
+
+        // ============= HAND TRACKING SIMULATION =============
+        function startHandTracking() {
+            let angle = 0;
+            setInterval(() => {
+                const watch = document.getElementById('watch');
+                const ring = document.getElementById('ring');
+                const sunglasses = document.getElementById('sunglasses');
+
+                angle += 0.02;
+                const x = Math.cos(angle) * 0.1;
+                const y = 0.3 + Math.sin(angle) * 0.05;
+
+                watch.setAttribute('position', `${x} ${y} -0.5`);
+                ring.setAttribute('position', `${x + 0.12} ${y} -0.5`);
+                sunglasses.setAttribute('position', `${x} ${y + 0.08} -0.5`);
+            }, 30);
+
+            updateStatus('✅ Tracking active');
+        }
+
+        // ============= UI SETUP =============
+        function setupControls() {
+            // Product selector
+            document.getElementById('productSelect').addEventListener('change', (e) => {
+                config.currentProduct = e.target.value;
+                switchProduct(config.currentProduct);
+                renderColorSwatches();
+            });
+
+            // Scale slider
+            document.getElementById('scaleSlider').addEventListener('input', (e) => {
+                config.scale = parseFloat(e.target.value);
+                document.getElementById('scaleValue').textContent = config.scale.toFixed(1) + 'x';
+                updateProductScale(config.scale);
+            });
+
+            // Rotation slider
+            document.getElementById('rotateSlider').addEventListener('input', (e) => {
+                config.rotation = parseFloat(e.target.value);
+                updateProductRotation(config.rotation);
+            });
+        }
+
+        function renderColorSwatches() {
+            const container = document.getElementById('colorSwatches');
+            container.innerHTML = '';
+            
+            const colors = config.colors[config.currentProduct];
+            colors.forEach(color => {
+                const swatch = document.createElement('div');
+                swatch.className = 'color-swatch';
+                swatch.style.backgroundColor = color;
+                swatch.onclick = () => updateProductColor(color);
+                container.appendChild(swatch);
+            });
+        }
+
+        // ============= PRODUCT SWITCHING =============
+        function switchProduct(product) {
+            const products = ['watch', 'ring', 'sunglasses'];
+            products.forEach(p => {
+                document.getElementById(p).setAttribute('visible', p === product);
+            });
+            updateStatus(`Switched to ${product}`);
+        }
+
+        // ============= COLOR UPDATES =============
+        function updateProductColor(color) {
+            config.color = color;
+            
+            switch(config.currentProduct) {
+                case 'watch':
+                    document.getElementById('watch-face').setAttribute('color', color);
+                    document.getElementById('watch-band').setAttribute('color', color);
+                    break;
+                case 'ring':
+                    document.getElementById('ring-band').setAttribute('color', color);
+                    document.getElementById('ring-stone').setAttribute('color', 
+                        color === '#d4af37' ? '#FF1493' : color === '#c0c0c0' ? '#00CED1' : color);
+                    break;
+                case 'sunglasses':
+                    document.getElementById('lens-left').setAttribute('color', 
+                        color === '#1a1a1a' ? '#1a1a1a' : color);
+                    document.getElementById('lens-right').setAttribute('color', 
+                        color === '#1a1a1a' ? '#1a1a1a' : color);
+                    document.getElementById('bridge').setAttribute('color', 
+                        color === '#1a1a1a' ? '#333333' : color);
+                    break;
+            }
+        }
+
+        // ============= SCALE & ROTATION =============
+        function updateProductScale(scale) {
+            const entity = document.getElementById(config.currentProduct);
+            entity.setAttribute('scale', `${scale} ${scale} ${scale}`);
+        }
+
+        function updateProductRotation(degrees) {
+            const entity = document.getElementById(config.currentProduct);
+            let rotation = entity.getAttribute('rotation');
+            
+            switch(config.currentProduct) {
+                case 'watch':
+                    entity.setAttribute('rotation', `0 0 ${degrees}`);
+                    break;
+                case 'ring':
+                    entity.setAttribute('rotation', `90 ${degrees} 0`);
+                    break;
+                case 'sunglasses':
+                    entity.setAttribute('rotation', `0 ${degrees} 0`);
+                    break;
+            }
+        }
+
+        // ============= SCREENSHOT =============
+        function captureScreenshot() {
+            const canvas = document.querySelector('canvas');
+            if (!canvas) return;
+            
+            const link = document.createElement('a');
+            link.href = canvas.toDataURL('image/png');
+            link.download = `ar-${config.currentProduct}-${Date.now()}.png`;
+            link.click();
+            
+            updateStatus('📸 Saved to gallery!');
+        }
+
+        // ============= UTILITIES =============
+        function updateStatus(msg) {
+            document.getElementById('status').textContent = msg;
+            console.log('Status:', msg);
+        }
+
+        function showError(msg) {
+            document.getElementById('errorMsg').textContent = msg;
+            document.getElementById('errorDiv').style.display = 'block';
+        }
+
+        // ============= START =============
+        window.addEventListener('DOMContentLoaded', () => {
+            if (!navigator.mediaDevices?.getUserMedia) {
+                showError('WebAR requires a modern mobile device.');
+                return;
+            }
+            setTimeout(initAR, 1000);
+        });
+    </script>
+</body>
+</html>
